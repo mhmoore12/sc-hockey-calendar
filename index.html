@@ -78,6 +78,7 @@
         flex-direction: row;
         gap: 0.5em;
         margin: 1rem 0;
+        overflow-x: scroll;
       }
       #select-all-activities {
         background-color: #b4975a;
@@ -380,6 +381,7 @@
           chk.checked = act.includes(activityFilter);
           chk.dataset.activity = act;
           chk.addEventListener("change", () => {
+            activityFilter = "";
             renderCalendar();
           });
           lbl.style.marginRight = "12px";
