@@ -411,6 +411,7 @@
       async function fetchAll() {
         calendars = {};
         events = [];
+
         const chosen = Array.from(
           document.querySelectorAll("#location-controls input[type=checkbox]")
         )
@@ -422,27 +423,65 @@
             "Select at least one location.";
           return;
         }
-        document.getElementById("calendar").innerHTML = `
-          <div class="loader">
-            <img src="https://upload.wikimedia.org/wikipedia/en/thumb/c/ce/Dallas_Stars_logo_%282013%29.svg/330px-Dallas_Stars_logo_%282013%29.svg.png" alt="Loading"/>
-            <div class="loader-text">LOADING...</div>
-          </div>`;
 
-        await Promise.all(
-          chosen.map(async (loc) => {
-            const res = await fetch(locationEndpoints[loc]),
-              data = await res.json();
-            data.calendars.forEach((cal) => {
-              const id = loc + ":" + cal.id;
-              calendars[id] = { id, name: cal.name, color: cal.color };
-              cal.events.forEach((ev) => {
-                ev.calendarId = id;
-                events.push(ev);
+        const calendarDiv = document.getElementById("calendar");
+        // initial loader
+        calendarDiv.innerHTML = `
+    <div class="loader">
+      <img src="https://upload.wikimedia.org/wikipedia/en/thumb/c/ce/Dallas_Stars_logo_%282013%29.svg/330px-Dallas_Stars_logo_%282013%29.svg.png" alt="Loading"/>
+      <div class="loader-text">LOADING...</div>
+    </div>`;
+
+        // helper to sleep n milliseconds
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+        // fetch with retries
+        for (const loc of chosen) {
+          let attempt = 0;
+          let success = false;
+
+          while (attempt < 10 && !success) {
+            attempt++;
+            try {
+              const res = await fetch(locationEndpoints[loc]);
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const data = await res.json();
+
+              // on first success clear any loader-text
+              if (attempt === 1) {
+                calendarDiv.querySelector(".loader-text").textContent =
+                  "LOADING...";
+              }
+
+              data.calendars.forEach((cal) => {
+                const id = `${loc}:${cal.id}`;
+                calendars[id] = { id, name: cal.name, color: cal.color };
+                cal.events.forEach((ev) => {
+                  ev.calendarId = id;
+                  events.push(ev);
+                });
               });
-            });
-          })
-        );
 
+              success = true;
+            } catch (err) {
+              const waitSec = Math.min(attempt, 10);
+              // update loader-text with retry info
+              calendarDiv.querySelector(
+                ".loader-text"
+              ).textContent = `Failed to get calendars for ${loc}. Retrying attempt ${attempt} of 10…`;
+              // wait before retrying
+              await sleep(waitSec * 1000);
+            }
+          }
+
+          if (!success) {
+            calendarDiv.querySelector(
+              ".loader-text"
+            ).textContent = `❌ Could not load ${loc} after 10 attempts.`;
+          }
+        }
+
+        // all done — initialize UI
         populateMonthSelect();
         buildActivityControls();
         renderCalendar();
