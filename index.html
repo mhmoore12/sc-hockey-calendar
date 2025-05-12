@@ -321,17 +321,19 @@
         ACTS: "starcenter_selected_activities",
       };
       const activities = [];
-      // 2) Helpers to read/write arrays in sessionStorage
+      // 2) Helpers to read/write arrays in localStorage
       function saveToStorage(key, arr) {
-        sessionStorage.setItem(key, JSON.stringify(arr));
+        localStorage.setItem(key, JSON.stringify(arr));
       }
       function loadFromStorage(key) {
         try {
-          return JSON.parse(sessionStorage.getItem(key)) || [];
+          return JSON.parse(localStorage.getItem(key)) || [];
         } catch {
           return [];
         }
       }
+      let selectedLocations = loadFromStorage(STORAGE_KEYS.LOCS);
+      let selectedActivities = loadFromStorage(STORAGE_KEYS.ACTS);
       let activityFilter = "";
       const locationEndpoints = {
         Euless:
@@ -852,13 +854,14 @@
 
       // Init
       (function init() {
-        if (!sessionStorage.getItem(STORAGE_KEYS.LOCS)) {
-          // default to Euless only
-          saveToStorage(STORAGE_KEYS.LOCS, ["Euless"]);
+        // if first time, default to everything
+        if (!selectedLocations.length) {
+          selectedLocations = Object.keys(locationEndpoints);
+          saveToStorage(STORAGE_KEYS.LOCS, selectedLocations);
         }
-        if (!sessionStorage.getItem(STORAGE_KEYS.ACTS)) {
-          // default is “all activities”, so save no filter array
-          saveToStorage(STORAGE_KEYS.ACTS, []);
+        if (!selectedActivities.length) {
+          selectedActivities = [...activities];
+          saveToStorage(STORAGE_KEYS.ACTS, selectedActivities);
         }
         buildLocationControls();
         fetchAll();
