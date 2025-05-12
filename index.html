@@ -552,7 +552,8 @@
             !visibleIds.includes(ev.calendarId)
           )
             return;
-          const key = d.toString().slice(0, 10);
+          const key = d.toDateString().slice(0, 10);
+          console.log(key);
           byDate[key] = byDate[key] || [];
           byDate[key].push(ev);
         });
@@ -563,14 +564,8 @@
           .forEach((dateKey) => {
             // Date header
             const dateHeader = document.createElement("h3");
-            dateHeader.textContent = new Date(dateKey).toLocaleDateString(
-              undefined,
-              {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-              }
-            );
+
+            dateHeader.textContent = dateKey;
             dateHeader.style.color = "var(--team-green)";
             listDiv.appendChild(dateHeader);
 
