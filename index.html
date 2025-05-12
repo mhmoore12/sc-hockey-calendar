@@ -315,6 +315,23 @@
     <div id="list" class="list-container"></div>
 
     <script>
+      // 1) At top of your script, define storage keys
+      const STORAGE_KEYS = {
+        LOCS: "starcenter_selected_locations",
+        ACTS: "starcenter_selected_activities",
+      };
+      const activities = [];
+      // 2) Helpers to read/write arrays in sessionStorage
+      function saveToStorage(key, arr) {
+        sessionStorage.setItem(key, JSON.stringify(arr));
+      }
+      function loadFromStorage(key) {
+        try {
+          return JSON.parse(sessionStorage.getItem(key)) || [];
+        } catch {
+          return [];
+        }
+      }
       let activityFilter = "";
       const locationEndpoints = {
         Euless:
@@ -350,15 +367,30 @@
       })();
 
       function buildLocationControls() {
+        const storedLocs = loadFromStorage(STORAGE_KEYS.LOCS);
         const c = document.getElementById("location-controls");
-        c.querySelectorAll("label,input").forEach((n) => n.remove());
+        // clear existing...
+        c.querySelectorAll("label, input").forEach((n) => n.remove());
         Object.keys(locationEndpoints).forEach((loc) => {
           const lbl = document.createElement("label"),
             chk = document.createElement("input");
           chk.type = "checkbox";
+          // if user had selected it before, keep it checked
+          chk.checked = storedLocs.includes(loc);
           chk.value = loc;
-          chk.checked = loc === "Euless";
-          chk.addEventListener("change", fetchAll);
+          chk.addEventListener("change", () => {
+            // update storage
+            const now = Array.from(
+              document.querySelectorAll(
+                "#location-controls input[type=checkbox]"
+              )
+            )
+              .filter((i) => i.checked)
+              .map((i) => i.value);
+            saveToStorage(STORAGE_KEYS.LOCS, now);
+            // re-fetch but do NOT reset activities
+            fetchAll();
+          });
           lbl.style.marginRight = "12px";
           lbl.appendChild(chk);
           lbl.append(" " + loc);
@@ -367,21 +399,35 @@
       }
 
       function buildActivityControls() {
+        const storedActs = loadFromStorage(STORAGE_KEYS.ACTS);
         activityMap = {};
         Object.values(calendars).forEach((cal) => {
           if (!activityMap[cal.name]) activityMap[cal.name] = [];
           activityMap[cal.name].push(cal.id);
         });
+
         const c = document.getElementById("activity-controls");
         c.innerHTML = "<label><strong>Activities:</strong></label>";
         Object.keys(activityMap).forEach((act) => {
+          if (!activities.includes(act)) {
+            activities.push(act);
+          }
           const lbl = document.createElement("label"),
             chk = document.createElement("input");
           chk.type = "checkbox";
-          chk.checked = act.includes(activityFilter);
+          // restore previous state, default to true if not in storage
+          chk.checked = storedActs.length ? storedActs.includes(act) : true;
           chk.dataset.activity = act;
           chk.addEventListener("change", () => {
-            activityFilter = "";
+            // update storage of activities
+            const now = Array.from(
+              document.querySelectorAll(
+                "#activity-controls input[type=checkbox]"
+              )
+            )
+              .filter((i) => i.checked)
+              .map((i) => i.dataset.activity);
+            saveToStorage(STORAGE_KEYS.ACTS, now);
             renderCalendar();
           });
           lbl.style.marginRight = "12px";
@@ -425,34 +471,49 @@
         }
 
         const calendarDiv = document.getElementById("calendar");
-        // initial loader
-        calendarDiv.innerHTML = `
-    <div class="loader">
-      <img src="https://upload.wikimedia.org/wikipedia/en/thumb/c/ce/Dallas_Stars_logo_%282013%29.svg/330px-Dallas_Stars_logo_%282013%29.svg.png" alt="Loading"/>
-      <div class="loader-text">LOADING...</div>
-    </div>`;
+        const listDiv = document.getElementById("list");
+        calendarDiv.innerHTML = "";
+        listDiv.innerHTML = "";
+        const loaderHTML = `
+      <div class="loader">
+        <img src="https://upload.wikimedia.org/wikipedia/en/thumb/c/ce/Dallas_Stars_logo_%282013%29.svg/330px-Dallas_Stars_logo_%282013%29.svg.png" alt="Loading"/>
+        <div class="loader-text">LOADING...</div>
+      </div>`;
+        // show spinner in both views
+        calendarDiv.innerHTML = loaderHTML;
+        listDiv.innerHTML = loaderHTML;
 
-        // helper to sleep n milliseconds
         const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-        // fetch with retries
-        for (const loc of chosen) {
-          let attempt = 0;
-          let success = false;
+        // helper that fetches one location with retries + sessionStorage cache
+        const fetchWithRetry = async (loc) => {
+          // 1. check sessionStorage first
+          const cached = sessionStorage.getItem(`cal_${loc}`);
+          if (cached) {
+            const data = JSON.parse(cached);
+            data.calendars.forEach((cal) => {
+              const id = `${loc}:${cal.id}`;
+              calendars[id] = { id, name: cal.name, color: cal.color };
+              cal.events.forEach((ev) => {
+                ev.calendarId = id;
+                events.push(ev);
+              });
+            });
+            return;
+          }
 
-          while (attempt < 10 && !success) {
-            attempt++;
+          // 2. otherwise, attempt fetch + retry
+          const maxAttempts = 10;
+          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
               const res = await fetch(locationEndpoints[loc]);
               if (!res.ok) throw new Error(`HTTP ${res.status}`);
               const data = await res.json();
 
-              // on first success clear any loader-text
-              if (attempt === 1) {
-                calendarDiv.querySelector(".loader-text").textContent =
-                  "LOADING...";
-              }
+              // 3. store in sessionStorage
+              sessionStorage.setItem(`cal_${loc}`, JSON.stringify(data));
 
+              // 4. populate calendars/events
               data.calendars.forEach((cal) => {
                 const id = `${loc}:${cal.id}`;
                 calendars[id] = { id, name: cal.name, color: cal.color };
@@ -461,31 +522,33 @@
                   events.push(ev);
                 });
               });
-
-              success = true;
+              return; // success – stop retrying
             } catch (err) {
               const waitSec = Math.min(attempt, 10);
-              // update loader-text with retry info
               calendarDiv.querySelector(
                 ".loader-text"
-              ).textContent = `Failed to get calendars for ${loc}. Retrying attempt ${attempt} of 10…`;
-              // wait before retrying
-              await sleep(waitSec * 1000);
+              ).textContent = `Failed to load ${loc}. Retrying ${attempt}/${maxAttempts}…`;
+              await new Promise((r) => setTimeout(r, waitSec * 1000));
             }
           }
 
-          if (!success) {
-            calendarDiv.querySelector(
-              ".loader-text"
-            ).textContent = `❌ Could not load ${loc} after 10 attempts.`;
-          }
-        }
+          // all retries failed
+          calendarDiv.querySelector(
+            ".loader-text"
+          ).textContent = `❌ Could not load ${loc} after ${maxAttempts} attempts.`;
+        };
 
-        // all done — initialize UI
+        // kick off all fetches in parallel
+        await Promise.all(chosen.map((loc) => fetchWithRetry(loc)));
+
+        await new Promise((r) => setTimeout(r, 0));
+
+        // once all done, rebuild UI
         populateMonthSelect();
         buildActivityControls();
         renderCalendar();
       }
+
       function convertDateToYYYYMMDD(date) {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, "0"); // Month is 0-indexed
@@ -585,9 +648,9 @@
                     ev.metadata?.centerName || "Unknown Location";
                   const title = ev.metadata?.name || "";
                   div.innerHTML = ` <b>${location}</b>
-                  <br/>
-                  ${title}
-                  <br/>${st}–${et}`;
+                    <br/>
+                    ${title}
+                    <br/>${st}–${et}`;
                   cell.appendChild(div);
                 });
               dateNum++;
@@ -671,11 +734,11 @@
                   const rink =
                     ev.metadata?.facilityName || "Rink not specified";
                   evDiv.innerHTML = `
-                  <dl>
-                    <dt>Event: </dt><dd><b style="color: ${color}">${title}</b><dd>
-                        <dt>Rink: </dt><dd>${rink}</dd>
-                        <dt>Time: </dt><dd>${date} @ ${start}–${end}</dd>
-                        </dl>`;
+                    <dl>
+                      <dt>Event: </dt><dd><b style="color: ${color}">${title}</b><dd>
+                          <dt>Rink: </dt><dd>${rink}</dd>
+                          <dt>Time: </dt><dd>${date} @ ${start}–${end}</dd>
+                          </dl>`;
                   listDiv.appendChild(evDiv);
                 });
 
@@ -708,6 +771,14 @@
           e.target.textContent = "List View";
         }
       });
+      // call this whenever you need to rebuild your checkboxes or rerun filters
+      function applyActivityFilter() {
+        // this is your global `activities` array of all possible names
+        // e.g. ["Adult Drop-In", "Youth Skills", "Public Skate", ...]
+        // you render only those in `selectedActivities`
+        buildActivityControls(activities, selectedActivities);
+        renderCalendar();
+      }
 
       // Select all locations
       document
@@ -718,34 +789,48 @@
             .forEach((chk) => (chk.checked = true));
           fetchAll();
         });
+      // button handlers:
 
-      // Select adult events
+      // Select adult events (any activity containing "Adult")
       document
         .getElementById("select-adult-activities")
         .addEventListener("click", () => {
-          activityFilter = "Adult";
-          fetchAll();
+          selectedActivities = activities.filter((name) =>
+            name.includes("Adult")
+          );
+          saveToStorage(STORAGE_KEYS.ACTS, selectedActivities);
+          applyActivityFilter();
         });
+
       // Select public events
       document
         .getElementById("select-public-activities")
         .addEventListener("click", () => {
-          activityFilter = "Public";
-          fetchAll();
+          selectedActivities = activities.filter((name) =>
+            name.includes("Public")
+          );
+          saveToStorage(STORAGE_KEYS.ACTS, selectedActivities);
+          applyActivityFilter();
         });
+
       // Select youth events
       document
         .getElementById("select-youth-activities")
         .addEventListener("click", () => {
-          activityFilter = "Youth";
-          fetchAll();
+          selectedActivities = activities.filter((name) =>
+            name.includes("Youth")
+          );
+          saveToStorage(STORAGE_KEYS.ACTS, selectedActivities);
+          applyActivityFilter();
         });
-      // Clear filters
+
+      // Clear filters (everything)
       document
         .getElementById("select-all-activities")
         .addEventListener("click", () => {
-          activityFilter = "";
-          fetchAll();
+          selectedActivities = [...activities];
+          saveToStorage(STORAGE_KEYS.ACTS, selectedActivities);
+          applyActivityFilter();
         });
 
       // Print
@@ -767,6 +852,14 @@
 
       // Init
       (function init() {
+        if (!sessionStorage.getItem(STORAGE_KEYS.LOCS)) {
+          // default to Euless only
+          saveToStorage(STORAGE_KEYS.LOCS, ["Euless"]);
+        }
+        if (!sessionStorage.getItem(STORAGE_KEYS.ACTS)) {
+          // default is “all activities”, so save no filter array
+          saveToStorage(STORAGE_KEYS.ACTS, []);
+        }
         buildLocationControls();
         fetchAll();
       })();
