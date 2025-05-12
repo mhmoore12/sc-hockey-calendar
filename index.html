@@ -32,6 +32,18 @@
         background-color: var(--team-white);
         color: var(--team-black);
       }
+      dl {
+        display: grid;
+        grid-template-columns: max-content auto;
+      }
+
+      dt {
+        grid-column-start: 1;
+      }
+
+      dd {
+        grid-column-start: 2;
+      }
       h1 {
         display: flex;
         align-items: center;
@@ -54,6 +66,22 @@
       }
       .controls label {
         font-weight: 500;
+      }
+      .donate {
+        display: flex;
+        flex-direction: row;
+        gap: 0.5em;
+        margin: 1rem 0;
+      }
+      .activity-filters {
+        display: flex;
+        flex-direction: row;
+        gap: 0.5em;
+        margin: 1rem 0;
+      }
+      #select-all-activities {
+        background-color: #b4975a;
+        border-color: #b4975a;
       }
       select,
       button {
@@ -79,7 +107,8 @@
         color: var(--team-white);
       }
 
-      .calendar-container {
+      .calendar-container,
+      .list-container {
         overflow-x: auto;
         padding-bottom: 8px;
       }
@@ -120,6 +149,74 @@
         box-shadow: var(--elevation-1);
       }
 
+      /* List view styling */
+      .list-container {
+        display: none;
+      }
+      .list-day {
+        margin-bottom: 16px;
+      }
+      .list-day h3 {
+        margin-bottom: 8px;
+        color: var(--team-green);
+      }
+      .list-event {
+        margin-left: 16px;
+        margin-bottom: 6px;
+      }
+
+      /* Loader */
+      .loader {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+      }
+      .loader img {
+        width: 100px;
+        height: 100px;
+        animation: spin 1.5s linear infinite;
+      }
+      .loader-text {
+        margin-top: 1rem;
+        font-family: "Roboto", sans-serif;
+        font-weight: 500;
+        font-size: 1.25rem;
+        color: var(--team-green);
+        letter-spacing: 0.1em;
+      }
+      @keyframes spin {
+        from {
+          transform: rotateY(0deg);
+        }
+        to {
+          transform: rotateY(360deg);
+        }
+      }
+
+      /* Mobile: list default & stacked controls */
+      @media (max-width: 600px) {
+        .controls {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .controls select,
+        .controls button {
+          width: 100%;
+          margin-bottom: 8px;
+        }
+        #calendar {
+          display: none !important;
+        }
+        #list {
+          display: block !important;
+        }
+        #toggle-view {
+          display: none;
+        }
+      }
+
       @media print {
         .no-print {
           display: none;
@@ -157,29 +254,67 @@
       Starcenter Rink Calendar
     </h1>
 
-    <!-- Location multi-select -->
+    <!-- Locations + Select All -->
     <div id="location-controls" class="controls no-print">
       <label><strong>Locations:</strong></label>
-      <!-- existing checkboxes… -->
+      <!-- will inject checkboxes here -->
+      <button id="select-all-locations" type="button">Select All</button>
     </div>
 
-    <!-- Month selector + print -->
+    <!-- Donation -->
+    <div class="donate no-print">
+      Want to support ongoing development?
+      <form action="https://www.paypal.com/donate" method="post" target="_top">
+        <input type="hidden" name="business" value="K4LLYL3UYT8JG" />
+        <input type="hidden" name="no_recurring" value="0" />
+        <input
+          type="hidden"
+          name="item_name"
+          value="Help support the Starcenter calendar."
+        />
+        <input type="hidden" name="currency_code" value="USD" />
+        <input
+          type="image"
+          src="https://www.paypalobjects.com/en_US/i/btn/btn_donate_SM.gif"
+          border="0"
+          name="submit"
+          title="PayPal - The safer, easier way to pay online!"
+          alt="Donate with PayPal button"
+        />
+      </form>
+    </div>
+
+    <!-- Month / Print / Toggle -->
     <div class="controls no-print">
       <label for="month-select">Month:</label>
       <select id="month-select"></select>
       <button id="print-button">Print</button>
+      <button id="toggle-view">List View</button>
     </div>
 
-    <!-- Activity-type toggles -->
+    <!-- Activities -->
     <div id="activity-controls" class="controls no-print">
       <label><strong>Activities:</strong></label>
-      <!-- checkboxes injected here -->
+      <!-- will inject checkboxes here -->
+    </div>
+    <div class="activity-filters">
+      <button id="select-adult-activities" type="button">Adult Hockey</button>
+      <button id="select-public-activities" type="button">Public Skate</button>
+      <button id="select-youth-activities" type="button">
+        Youth Open Hockey
+      </button>
+      <button id="select-all-activities" type="button">
+        Clear Activity Filter
+      </button>
     </div>
 
-    <div id="calendar" class="calendar-container">Loading calendar…</div>
+    <!-- Views -->
+    <h1 id="month-header"></h1>
+    <div id="calendar" class="calendar-container"></div>
+    <div id="list" class="list-container"></div>
 
     <script>
-      // Endpoints for each location
+      let activityFilter = "";
       const locationEndpoints = {
         Euless:
           "https://api.reachcm.com/calendar/export/web/group/expanded/1660/?start_date=2025-3-1&end_date=2029-10-31&authorization=Ki4qtBgYpXOLxLzGi9Dnakw2%2FsCpBlesTwpO2RI6qBI4mGu8U0jshXTMJ5%2BeJ0ra6c7ivTx%2BPWixbW3xbvtKhbU4t2UigEJa1IbwhTVufGMcAKe0O0eSDsqx%2BY24oHgoJHjaqdy0tLY2WIQBEb7KZcfINjmAUci5poEiXG8XiIOl%2FjqL3CQXTcZYm5%2FfH%2BAF0YBU0GQGmuHKofFD62XT6Eokjxjcy8eoJ2mer%2FT6MYoQKDa7aqBqgdo4P6ov%2FIu4T0ic5FdIGnepFldkAZ0J1FRmTjmG5cRnN89B3rVQNcMBd030DG7ZQrOpOdg9CHhO6n6LxhwfhznAve78XsXSwcaOQ0JQuwBqJ337pa9VfvXqXXo%3D&timezone=America/Chicago",
@@ -199,11 +334,10 @@
 
       let calendars = {},
         events = [],
-        activityMap = [];
-      const months = [];
+        activityMap = {},
+        months = [];
 
-      // generate next 7 months (current + 6 ahead)
-      (function generateMonths() {
+      (function genMonths() {
         const now = new Date(),
           sm = now.getMonth(),
           sy = now.getFullYear();
@@ -216,7 +350,7 @@
 
       function buildLocationControls() {
         const c = document.getElementById("location-controls");
-        c.innerHTML = "";
+        c.querySelectorAll("label,input").forEach((n) => n.remove());
         Object.keys(locationEndpoints).forEach((loc) => {
           const lbl = document.createElement("label"),
             chk = document.createElement("input");
@@ -227,58 +361,32 @@
           lbl.style.marginRight = "12px";
           lbl.appendChild(chk);
           lbl.append(" " + loc);
-          c.appendChild(lbl);
+          c.insertBefore(lbl, document.getElementById("select-all-locations"));
         });
-        /* <button id="select-all-locations" type="button">Select All</button> */
-        const btn = document.createElement("button");
-        btn.id = "select-all-locations";
-        btn.type = "button";
-        btn.innerHTML = "Select All";
-        c.appendChild(btn);
       }
 
-      async function fetchAll() {
-        calendars = {};
-        events = [];
-        const chosen = Array.from(
-          document.querySelectorAll(
-            "#location-controls input[type=checkbox]:checked"
-          )
-        ).map((i) => i.value);
-        const calDiv = document.getElementById("calendar");
-        if (!chosen.length) {
-          calDiv.textContent = "Select at least one location.";
-          return;
-        }
-        calDiv.textContent = "Loading…";
-
-        await Promise.all(
-          chosen.map(async (loc) => {
-            try {
-              const res = await fetch(locationEndpoints[loc]),
-                data = await res.json();
-              data.calendars.forEach((cal) => {
-                const id = `${loc}:${cal.id}`;
-                calendars[id] = {
-                  id,
-                  location: loc,
-                  name: cal.name,
-                  color: cal.color,
-                };
-                cal.events.forEach((ev) => {
-                  ev.calendarId = id;
-                  events.push(ev);
-                });
-              });
-            } catch (e) {
-              console.error("Error loading", loc, e);
-            }
-          })
-        );
-
-        populateMonthSelect();
-        buildActivityControls();
-        renderCalendar();
+      function buildActivityControls() {
+        activityMap = {};
+        Object.values(calendars).forEach((cal) => {
+          if (!activityMap[cal.name]) activityMap[cal.name] = [];
+          activityMap[cal.name].push(cal.id);
+        });
+        const c = document.getElementById("activity-controls");
+        c.innerHTML = "<label><strong>Activities:</strong></label>";
+        Object.keys(activityMap).forEach((act) => {
+          const lbl = document.createElement("label"),
+            chk = document.createElement("input");
+          chk.type = "checkbox";
+          chk.checked = act.includes(activityFilter);
+          chk.dataset.activity = act;
+          chk.addEventListener("change", () => {
+            renderCalendar();
+          });
+          lbl.style.marginRight = "12px";
+          lbl.appendChild(chk);
+          lbl.append(" " + act);
+          c.appendChild(lbl);
+        });
       }
 
       function populateMonthSelect() {
@@ -298,33 +406,51 @@
         sel.onchange = renderCalendar;
       }
 
-      function buildActivityControls() {
-        activityMap = {};
-        Object.values(calendars).forEach((cal) => {
-          const act = cal.name;
-          if (!activityMap[act]) activityMap[act] = [];
-          activityMap[act].push(cal.id);
-        });
+      async function fetchAll() {
+        calendars = {};
+        events = [];
+        const chosen = Array.from(
+          document.querySelectorAll("#location-controls input[type=checkbox]")
+        )
+          .filter((i) => i.checked)
+          .map((i) => i.value);
 
-        const c = document.getElementById("activity-controls");
-        c.innerHTML = "";
-        Object.keys(activityMap).forEach((act) => {
-          const lbl = document.createElement("label"),
-            chk = document.createElement("input");
-          chk.type = "checkbox";
-          chk.checked = true;
-          chk.dataset.activity = act;
-          chk.addEventListener("change", renderCalendar);
-          lbl.style.marginRight = "12px";
-          lbl.appendChild(chk);
-          lbl.append(" " + act);
-          c.appendChild(lbl);
-        });
+        if (!chosen.length) {
+          document.getElementById("calendar").textContent =
+            "Select at least one location.";
+          return;
+        }
+        document.getElementById("calendar").innerHTML = `
+          <div class="loader">
+            <img src="https://upload.wikimedia.org/wikipedia/en/thumb/c/ce/Dallas_Stars_logo_%282013%29.svg/330px-Dallas_Stars_logo_%282013%29.svg.png" alt="Loading"/>
+            <div class="loader-text">LOADING...</div>
+          </div>`;
+
+        await Promise.all(
+          chosen.map(async (loc) => {
+            const res = await fetch(locationEndpoints[loc]),
+              data = await res.json();
+            data.calendars.forEach((cal) => {
+              const id = loc + ":" + cal.id;
+              calendars[id] = { id, name: cal.name, color: cal.color };
+              cal.events.forEach((ev) => {
+                ev.calendarId = id;
+                events.push(ev);
+              });
+            });
+          })
+        );
+
+        populateMonthSelect();
+        buildActivityControls();
+        renderCalendar();
       }
 
       function renderCalendar() {
-        const calDiv = document.getElementById("calendar");
+        const calDiv = document.getElementById("calendar"),
+          listDiv = document.getElementById("list");
         calDiv.innerHTML = "";
+        listDiv.innerHTML = "";
 
         const [yy, mm] = document
             .getElementById("month-select")
@@ -334,10 +460,22 @@
           last = new Date(yy, mm, 0),
           startDow = first.getDay(),
           days = last.getDate(),
-          table = document.createElement("table");
-        table.className = "calendar";
+          selectedActs = Array.from(
+            document.querySelectorAll("#activity-controls input[type=checkbox]")
+          )
+            .filter((i) => i.checked)
+            .map((i) => i.dataset.activity),
+          visibleIds = selectedActs.flatMap((a) => activityMap[a] || []);
+        const monthDiv = document.getElementById("month-header");
+        79;
 
-        // header
+        const monthSelectEl = document.getElementById("month-select");
+        const monthText =
+          monthSelectEl.options[monthSelectEl.selectedIndex].innerHTML;
+        monthDiv.textContent = monthText;
+        // Calendar grid
+        const table = document.createElement("table");
+        table.className = "calendar";
         const header = document.createElement("tr");
         ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach((d) => {
           const th = document.createElement("th");
@@ -346,66 +484,52 @@
         });
         table.appendChild(header);
 
-        // which calendarIds to show?
-        const selectedActs = Array.from(
-            document.querySelectorAll(
-              "#activity-controls input[type=checkbox]:checked"
-            )
-          ).map((i) => i.dataset.activity),
-          visibleIds = selectedActs.flatMap((a) => activityMap[a] || []);
-
         let dateNum = 1;
-        for (let week = 0; week < 6; week++) {
+        for (let w = 0; w < 6; w++) {
           const row = document.createElement("tr");
-          for (let dow = 0; dow < 7; dow++) {
+          for (let d = 0; d < 7; d++) {
             const cell = document.createElement("td");
-            if (week === 0 && dow < startDow) {
-              // blank
-            } else if (dateNum > days) {
-              // blank
-            } else {
+            if (!(w === 0 && d < startDow) && dateNum <= days) {
               const dn = document.createElement("div");
               dn.className = "date-number";
               dn.textContent = dateNum;
               cell.appendChild(dn);
-
               events
                 .filter((ev) => {
-                  const d = new Date(ev.start_date);
+                  const dt = new Date(ev.start_date);
                   return (
-                    d.getFullYear() === yy &&
-                    d.getMonth() === mm - 1 &&
-                    d.getDate() === dateNum &&
+                    dt.getFullYear() === yy &&
+                    dt.getMonth() === mm - 1 &&
+                    dt.getDate() === dateNum &&
                     visibleIds.includes(ev.calendarId)
                   );
                 })
                 .forEach((ev) => {
-                  console.log(ev);
                   const div = document.createElement("div");
                   div.className = "event";
-                  div.style.backgroundColor =
-                    calendars[ev.calendarId].color || "var(--team-green)";
-                  if (calendars[ev.calendarId].color == "#FFDC00") {
-                    div.style.color = "#000";
+                  let color = calendars[ev.calendarId].color;
+
+                  if (color == "#FFDC00") {
+                    color = "#B4975A";
                   }
-                  const title = ev.metadata?.name || "";
+                  div.style.backgroundColor = color;
                   const st = new Date(ev.start_date).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  });
-                  const et = new Date(ev.end_date).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  });
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }),
+                    et = new Date(ev.end_date).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    });
                   const location =
                     ev.metadata?.centerName || "Unknown Location";
-                  div.innerHTML = `<b>${location}</b>
+                  const title = ev.metadata?.name || "";
+                  div.innerHTML = ` <b>${location}</b>
                   <br/>
                   ${title}
                   <br/>${st}–${et}`;
                   cell.appendChild(div);
                 });
-
               dateNum++;
             }
             row.appendChild(cell);
@@ -413,37 +537,185 @@
           table.appendChild(row);
           if (dateNum > days) break;
         }
-
         calDiv.appendChild(table);
+
+        // 1) Which calendarIds are visible?
+        const byDate = {};
+        events.forEach((ev) => {
+          const d = new Date(ev.start_date);
+          if (
+            d.getFullYear() !== yy ||
+            d.getMonth() + 1 !== mm ||
+            !visibleIds.includes(ev.calendarId)
+          )
+            return;
+
+          const key = d.toISOString().slice(0, 10);
+          byDate[key] = byDate[key] || [];
+          byDate[key].push(ev);
+        });
+
+        // 3) Iterate dates in chronological order
+        Object.keys(byDate)
+          .sort()
+          .forEach((dateKey) => {
+            // Date header
+            const dateHeader = document.createElement("h3");
+            dateHeader.textContent = new Date(dateKey).toLocaleDateString(
+              undefined,
+              {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+              }
+            );
+            dateHeader.style.color = "var(--team-green)";
+            listDiv.appendChild(dateHeader);
+
+            // 4) Within each date, group by location
+            const evsOnDate = byDate[dateKey];
+            const locations = [
+              ...new Set(evsOnDate.map((ev) => ev.calendarId.split(":")[0])),
+            ];
+
+            locations.forEach((loc) => {
+              // Location sub-header
+              const locHeader = document.createElement("h4");
+              locHeader.textContent = loc;
+              locHeader.style.marginLeft = "8px";
+              locHeader.style.color = "var(--team-black)";
+              listDiv.appendChild(locHeader);
+
+              // 5) Filter & sort events for this location
+              evsOnDate
+                .filter((ev) => ev.calendarId.startsWith(loc + ":"))
+                .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))
+                .forEach((ev) => {
+                  const evDiv = document.createElement("div");
+                  evDiv.className = "list-event";
+                  let color = calendars[ev.calendarId].color;
+
+                  if (color == "#FFDC00") {
+                    color = "#B4975A";
+                  }
+
+                  evDiv.style.borderLeft = `4px solid ${color}`;
+                  evDiv.style.paddingLeft = "8px";
+                  evDiv.style.marginBottom = "6px";
+
+                  const date = new Intl.DateTimeFormat("en-US", {
+                    dateStyle: "short",
+                  }).format(new Date(ev.start_date));
+                  const start = new Date(ev.start_date).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }),
+                    end = new Date(ev.end_date).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }),
+                    title = ev.metadata?.name || "";
+                  const rink =
+                    ev.metadata?.facilityName || "Rink not specified";
+                  evDiv.innerHTML = `
+                  <dl>
+                    <dt>Event: </dt><dd><b style="color: ${color}">${title}</b><dd>
+                        <dt>Rink: </dt><dd>${rink}</dd>
+                        <dt>Time: </dt><dd>${date} @ ${start}–${end}</dd>
+                        </dl>`;
+                  listDiv.appendChild(evDiv);
+                });
+
+              // small spacer
+              const space = document.createElement("div");
+              space.style.marginBottom = "12px";
+              listDiv.appendChild(space);
+            });
+
+            // date separator
+            const hr = document.createElement("hr");
+            hr.style.border = "none";
+            hr.style.borderTop = "1px solid var(--team-silver)";
+            hr.style.margin = "12px 0";
+            listDiv.appendChild(hr);
+          });
       }
 
-      function attachPrintButton() {
-        document
-          .getElementById("print-button")
-          .addEventListener("click", () => window.print());
-      }
+      // Toggle view
+      document.getElementById("toggle-view").addEventListener("click", (e) => {
+        const cal = document.getElementById("calendar"),
+          lst = document.getElementById("list");
+        if (cal.style.display !== "none") {
+          cal.style.display = "none";
+          lst.style.display = "block";
+          e.target.textContent = "Calendar View";
+        } else {
+          cal.style.display = "block";
+          lst.style.display = "none";
+          e.target.textContent = "List View";
+        }
+      });
 
-      // initialize
+      // Select all locations
+      document
+        .getElementById("select-all-locations")
+        .addEventListener("click", () => {
+          document
+            .querySelectorAll("#location-controls input[type=checkbox]")
+            .forEach((chk) => (chk.checked = true));
+          fetchAll();
+        });
+
+      // Select adult events
+      document
+        .getElementById("select-adult-activities")
+        .addEventListener("click", () => {
+          activityFilter = "Adult";
+          fetchAll();
+        });
+      // Select public events
+      document
+        .getElementById("select-public-activities")
+        .addEventListener("click", () => {
+          activityFilter = "Public";
+          fetchAll();
+        });
+      // Select youth events
+      document
+        .getElementById("select-youth-activities")
+        .addEventListener("click", () => {
+          activityFilter = "Youth";
+          fetchAll();
+        });
+      // Clear filters
+      document
+        .getElementById("select-all-activities")
+        .addEventListener("click", () => {
+          activityFilter = "";
+          fetchAll();
+        });
+
+      // Print
+      document
+        .getElementById("print-button")
+        .addEventListener("click", () => window.print());
+
+      // Mobile enforce list view
+      function enforceMobileView() {
+        if (window.innerWidth <= 600) {
+          document.getElementById("calendar").style.display = "none";
+          document.getElementById("list").style.display = "block";
+          const btn = document.getElementById("toggle-view");
+          if (btn) btn.textContent = "Calendar View";
+        }
+      }
+      window.addEventListener("DOMContentLoaded", enforceMobileView);
+      window.addEventListener("resize", enforceMobileView);
+
+      // Init
       (function init() {
         buildLocationControls();
-        // after buildLocationControls(), wire up the new button:
-
         fetchAll();
-        attachPrintButton();
-      })();
-      (function () {
-        document
-          .getElementById("select-all-locations")
-          .addEventListener("click", () => {
-            // check all location boxes
-            document
-              .querySelectorAll("#location-controls input[type=checkbox]")
-              .forEach((chk) => {
-                chk.checked = true;
-              });
-            // re-fetch & redraw calendar
-            fetchAll();
-          });
       })();
     </script>
   </body>
