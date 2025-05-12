@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, minimum-scale=1"
+    />
+    <title>Multi-Location Starcenter Rink Calendar</title>
+    <link
+      href="https://fonts.googleapis.com/css?family=Roboto:400,500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        /* Dallas Stars palette */
+        --team-green: #006847;
+        --team-silver: #8f8f8c;
+        --team-black: #111111;
+        --team-white: #ffffff;
+
+        /* Material shape & elevation */
+        --mdc-shape-small: 4px;
+        --elevation-1: 0 1px 3px rgba(0, 0, 0, 0.12),
+          0 1px 2px rgba(0, 0, 0, 0.24);
+      }
+
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: "Roboto", sans-serif;
+        background-color: var(--team-white);
+        color: var(--team-black);
+      }
+      h1 {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        margin: 0 0 24px;
+        padding: 1rem;
+        background-color: var(--team-green);
+        color: var(--team-white);
+        border-radius: var(--mdc-shape-small);
+        box-shadow: var(--elevation-1);
+      }
+
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 16px;
+        align-items: center;
+      }
+      .controls label {
+        font-weight: 500;
+      }
+      select,
+      button {
+        min-width: 120px;
+        height: 40px;
+        padding: 0 12px;
+        font-size: 1rem;
+        border: 2px solid var(--team-green);
+        border-radius: var(--mdc-shape-small);
+        background-color: var(--team-white);
+        color: var(--team-black);
+        box-shadow: var(--elevation-1);
+        cursor: pointer;
+        transition: box-shadow 0.2s;
+      }
+      select:focus,
+      button:focus {
+        outline: none;
+        box-shadow: 0 0 0 4px rgba(0, 104, 71, 0.32);
+      }
+      button {
+        background-color: var(--team-green);
+        color: var(--team-white);
+      }
+
+      .calendar-container {
+        overflow-x: auto;
+        padding-bottom: 8px;
+      }
+      table.calendar {
+        width: 100%;
+        border-spacing: 8px;
+        border-collapse: separate;
+      }
+      table.calendar th {
+        padding: 8px;
+        background-color: var(--team-black);
+        color: var(--team-white);
+        font-weight: 500;
+        text-align: center;
+      }
+      table.calendar td {
+        background-color: var(--team-white);
+        color: var(--team-black);
+        border: none;
+        border-radius: var(--mdc-shape-small);
+        padding: 8px;
+        vertical-align: top;
+        min-width: 80px;
+        min-height: 100px;
+        box-shadow: var(--elevation-1);
+      }
+      .date-number {
+        font-weight: 500;
+        margin-bottom: 8px;
+      }
+      .event {
+        margin-bottom: 4px;
+        padding: 4px 6px;
+        border-radius: var(--mdc-shape-small);
+        background-color: var(--team-green);
+        color: var(--team-white);
+        font-size: 0.875rem;
+        box-shadow: var(--elevation-1);
+      }
+
+      @media print {
+        .no-print {
+          display: none;
+        }
+        body {
+          margin: 0;
+        }
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+      }
+      @media (max-width: 600px) {
+        table.calendar th,
+        table.calendar td {
+          min-width: 60px;
+          min-height: 80px;
+          font-size: 0.75rem;
+        }
+        .event {
+          font-size: 0.75rem;
+          padding: 2px 4px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>
+      <img
+        src="https://upload.wikimedia.org/wikipedia/en/thumb/c/ce/Dallas_Stars_logo_%282013%29.svg/330px-Dallas_Stars_logo_%282013%29.svg.png"
+        alt="Dallas Stars Logo"
+        style="height: 48px"
+      />
+      Starcenter Rink Calendar
+    </h1>
+
+    <!-- Location multi-select -->
+    <div id="location-controls" class="controls no-print">
+      <label><strong>Locations:</strong></label>
+      <!-- existing checkboxes… -->
+    </div>
+
+    <!-- Month selector + print -->
+    <div class="controls no-print">
+      <label for="month-select">Month:</label>
+      <select id="month-select"></select>
+      <button id="print-button">Print</button>
+    </div>
+
+    <!-- Activity-type toggles -->
+    <div id="activity-controls" class="controls no-print">
+      <label><strong>Activities:</strong></label>
+      <!-- checkboxes injected here -->
+    </div>
+
+    <div id="calendar" class="calendar-container">Loading calendar…</div>
+
+    <script>
+      // Endpoints for each location
+      const locationEndpoints = {
+        Euless:
+          "https://api.reachcm.com/calendar/export/web/group/expanded/1660/?start_date=2025-3-1&end_date=2029-10-31&authorization=Ki4qtBgYpXOLxLzGi9Dnakw2%2FsCpBlesTwpO2RI6qBI4mGu8U0jshXTMJ5%2BeJ0ra6c7ivTx%2BPWixbW3xbvtKhbU4t2UigEJa1IbwhTVufGMcAKe0O0eSDsqx%2BY24oHgoJHjaqdy0tLY2WIQBEb7KZcfINjmAUci5poEiXG8XiIOl%2FjqL3CQXTcZYm5%2FfH%2BAF0YBU0GQGmuHKofFD62XT6Eokjxjcy8eoJ2mer%2FT6MYoQKDa7aqBqgdo4P6ov%2FIu4T0ic5FdIGnepFldkAZ0J1FRmTjmG5cRnN89B3rVQNcMBd030DG7ZQrOpOdg9CHhO6n6LxhwfhznAve78XsXSwcaOQ0JQuwBqJ337pa9VfvXqXXo%3D&timezone=America/Chicago",
+        "Farmer's Branch":
+          "https://api.reachcm.com/calendar/export/web/group/expanded/1680/?start_date=2025-4-1&end_date=2029-11-30&authorization=Ki4q%2BZkvj06ZWTcbO4Fj4J35211O7XeoVWzPunbJiFaxWMBayj6l72X0I3V5UfqoWqE3knPdx1MKHZH92KthAqDMGOeH%2Ft3m%2BDNNemir2Ft58DNSanes6uY3IMeByrNhVWw4g8%2BLASoca5v993w7GouyEwvt7ErJS4DwPI299mehP6%2F38JznYcy6RX9SWjpjE26zXABGZTs46NBCZEPYPZeOS20KVioXk%2Bm24iV%2F31TsnRJPcFJTZmyew4RQJZGmmvsG0UYmSGjYa1aBGbIa5fvWUjsgWnVsu6mAjNAqCeSW9us8geyaU55xaHLoT%2FTz2pk1080czSxbjWsEMk6awbvTcjXAy6K%2BARE8pEsOddnUgJk%3D&timezone=America/Chicago",
+        Frisco:
+          "https://api.reachcm.com/calendar/export/web/group/expanded/1694/?start_date=2025-4-1&end_date=2029-11-30&authorization=Ki4qbanq%2Fvl06%2FqRZGCgeL%2B3Etgn8wkbZTX%2F08Uy0v9RqX5qpI4ObrAzGvfgMsz3kM5F1hhoUQW3M8nwYcxVWqER4JtRETK6RFu1jvfJal0OQoV5Kv3LMvH8xly0Bs9K9AiVeV6zH2BHJ0p69nzb%2Fy8jtDYhg8jUJku6atu6AYr6l%2FWfUL%2BsV4396EGCFR05KgI5j1t6%2BVibE9wAqSBvo2pK0CBiisQYpDRev0Jc9KgxgHZ0kgXZNJ4O2aS%2BwXGH3GJoLLz24cLErU%2FQFWwAlFAn3HiqBdBf5z07cPr0j4dZDbuiy6swYWvhV41OfagVV3pZJz2Qx7flmcmM0silg8PftgiJjCiFFnRVNThD0TVItSs%3D&timezone=America/Chicago",
+        Mansfield:
+          "https://api.reachcm.com/calendar/export/web/group/expanded/1681/?start_date=2025-4-1&end_date=2029-11-30&authorization=Ki4qJ6WldLMPNxQdGMPkLTq9iuOv%2Bof6o7GG7k5KEa87wyiWsJ0h%2FPFC8bkxRlQUe4XnoeiQiiIDmhsSrWAM%2BoW2XF5vzi9cmZJ7NOSM1KqygmgajQMY8XCmC0%2BXxQTCqvLJ8EnvJ9iH8PI88TDXWZTRULXJb%2FvuAIdngSw%2FNKgN6FWzSd1P4YwzsdM1vVRjePDB%2F45V%2Bl8Gx05%2BHsq5S5m8mM0Gd2vtnsvESgYz3vQo0YUP1nycEIthk3Xex3AlfakWpWRf2udn89eQ1aHSqLakGyxqsV9Rt6sYNAueLZsD0%2Ft%2F3vagqup%2FHvmYXj3GfX2tggdlZ8hvtwL3NouxV1uBmL7Rv%2B9iXfDv1AhPuRUhzu4%3D&timezone=America/Chicago",
+        McKinney:
+          "https://api.reachcm.com/calendar/export/web/group/expanded/1682/?start_date=2025-4-1&end_date=2029-11-30&authorization=Ki4qnXFbGU6WHw77XUW8Gy09yKWEAB%2BVhPSROBktft%2F5wSUo2u5u4slNFPMQebTy66rsWi%2BPL8Bci%2BBwNqN9rBvQlQAwClTPgLI5USTxc4wMhlI219jHnFXCHJVkoUTazqZYp1DN4dH8K%2BetdGnovwvf1A9Yt6%2BD6mlP7PqozMbeyj214up12JDPtODCC19etb%2FJIv%2BX285Lf4Puq0QtZOHHAF7fcnoGsCh5qFQ%2BH3lzJNmTI9fUcIi9Q%2BGXrp3sASsMgnT1NOX9QsLamBYKzca05KTDDX%2BDXSiTEK5gWFQD%2FKiI1RKTNKvZjmagQ8vANS4Wl4fihSkGferCh6RzG3vGUUNjQ1Sc4x2EQdF9xEM%2BtDs%3D&timezone=America/Chicago",
+        Plano:
+          "https://api.reachcm.com/calendar/export/web/group/expanded/1683/?start_date=2025-4-1&end_date=2029-11-30&authorization=Ki4qSjmKEvD%2BCJlEtsGpA%2BwF%2BOr5JPRtGg2JRNOKGABHWyjTC6MgrY0a8ql0pVC%2Bn0ptcL%2Be6W8o%2Bo53QQOIq%2FAuP3IiafFTvcm1m2DGt7Ko60RY703Lxe4MHOafbl36L7NB8VsgviM%2FV7CaPUMJWr4PJBRH1iGB6Gv%2BlidmWUqLjT7bBTvl5eIw1jkxT6VWHwtrmxy9E2FL13cqlf%2Fpvzam7dXt3WKIqzYIct4BPPk9u%2FK65rn%2Fv%2B65m3oC5LHq7iG8IMvgJLDgJEbb6MasYKhzu9i7zDFDw1zbQ%2B8ZydIf2UZ6IutmtxaY0krGPpuSAVZi7Z3iYldY3omXyU5pazQoMXacP0kBGnR8nOYLYHRSGo4%3D&timezone=America/Chicago",
+        Richardson:
+          "https://api.reachcm.com/calendar/export/web/group/expanded/1685/?start_date=2025-4-1&end_date=2029-11-30&authorization=Ki4qbD4rBOAmvosCfxzTe3fQYO4wZFThW%2FDVUJJqoRoVNG1uO7F%2FfvwKYX%2BO%2BzvNwvhRhPFkGWybKQgXuwVVurQJfch6AVRjv3QgCQMeZBd5abTXHRgjKSQV8PsTyuLqKYdDkqV28EzV0WKGUTtwxNp6DtxQIkMUXzfA%2BfTHf%2BhjrpF0nJ%2B4iwWcW3E11ZiYgXKFZ5aCWjA%2BrD1LL%2FMrc0RGyacL%2FwaUd%2FG18C0yd07XMVnb7lJv6ziFvV4I5OQ5q%2F5%2ByG3Tuk5s%2Bn1KVAKgyillOkEX4qAqHOPDRHMURf%2BREvt5r3x%2F7HF2XJlvBGlP55%2BOCGoG03TDOG7V1YR1EHTHuPyQ8ixIzO%2BIOE71qD2mlZE%3D&timezone=America/Chicago",
+      };
+
+      let calendars = {},
+        events = [],
+        activityMap = [];
+      const months = [];
+
+      // generate next 7 months (current + 6 ahead)
+      (function generateMonths() {
+        const now = new Date(),
+          sm = now.getMonth(),
+          sy = now.getFullYear();
+        for (let i = 0; i < 7; i++) {
+          const m = (sm + i) % 12,
+            y = sy + Math.floor((sm + i) / 12);
+          months.push({ month: m, year: y });
+        }
+      })();
+
+      function buildLocationControls() {
+        const c = document.getElementById("location-controls");
+        c.innerHTML = "";
+        Object.keys(locationEndpoints).forEach((loc) => {
+          const lbl = document.createElement("label"),
+            chk = document.createElement("input");
+          chk.type = "checkbox";
+          chk.value = loc;
+          chk.checked = loc === "Euless";
+          chk.addEventListener("change", fetchAll);
+          lbl.style.marginRight = "12px";
+          lbl.appendChild(chk);
+          lbl.append(" " + loc);
+          c.appendChild(lbl);
+        });
+        /* <button id="select-all-locations" type="button">Select All</button> */
+        const btn = document.createElement("button");
+        btn.id = "select-all-locations";
+        btn.type = "button";
+        btn.innerHTML = "Select All";
+        c.appendChild(btn);
+      }
+
+      async function fetchAll() {
+        calendars = {};
+        events = [];
+        const chosen = Array.from(
+          document.querySelectorAll(
+            "#location-controls input[type=checkbox]:checked"
+          )
+        ).map((i) => i.value);
+        const calDiv = document.getElementById("calendar");
+        if (!chosen.length) {
+          calDiv.textContent = "Select at least one location.";
+          return;
+        }
+        calDiv.textContent = "Loading…";
+
+        await Promise.all(
+          chosen.map(async (loc) => {
+            try {
+              const res = await fetch(locationEndpoints[loc]),
+                data = await res.json();
+              data.calendars.forEach((cal) => {
+                const id = `${loc}:${cal.id}`;
+                calendars[id] = {
+                  id,
+                  location: loc,
+                  name: cal.name,
+                  color: cal.color,
+                };
+                cal.events.forEach((ev) => {
+                  ev.calendarId = id;
+                  events.push(ev);
+                });
+              });
+            } catch (e) {
+              console.error("Error loading", loc, e);
+            }
+          })
+        );
+
+        populateMonthSelect();
+        buildActivityControls();
+        renderCalendar();
+      }
+
+      function populateMonthSelect() {
+        const sel = document.getElementById("month-select");
+        sel.innerHTML = "";
+        months.forEach((m) => {
+          const date = new Date(m.year, m.month, 1),
+            opt = document.createElement("option");
+          opt.value = `${m.year}-${String(m.month + 1).padStart(2, "0")}`;
+          opt.textContent = date.toLocaleString("default", {
+            month: "long",
+            year: "numeric",
+          });
+          sel.appendChild(opt);
+        });
+        sel.selectedIndex = 0;
+        sel.onchange = renderCalendar;
+      }
+
+      function buildActivityControls() {
+        activityMap = {};
+        Object.values(calendars).forEach((cal) => {
+          const act = cal.name;
+          if (!activityMap[act]) activityMap[act] = [];
+          activityMap[act].push(cal.id);
+        });
+
+        const c = document.getElementById("activity-controls");
+        c.innerHTML = "";
+        Object.keys(activityMap).forEach((act) => {
+          const lbl = document.createElement("label"),
+            chk = document.createElement("input");
+          chk.type = "checkbox";
+          chk.checked = true;
+          chk.dataset.activity = act;
+          chk.addEventListener("change", renderCalendar);
+          lbl.style.marginRight = "12px";
+          lbl.appendChild(chk);
+          lbl.append(" " + act);
+          c.appendChild(lbl);
+        });
+      }
+
+      function renderCalendar() {
+        const calDiv = document.getElementById("calendar");
+        calDiv.innerHTML = "";
+
+        const [yy, mm] = document
+            .getElementById("month-select")
+            .value.split("-")
+            .map(Number),
+          first = new Date(yy, mm - 1, 1),
+          last = new Date(yy, mm, 0),
+          startDow = first.getDay(),
+          days = last.getDate(),
+          table = document.createElement("table");
+        table.className = "calendar";
+
+        // header
+        const header = document.createElement("tr");
+        ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach((d) => {
+          const th = document.createElement("th");
+          th.textContent = d;
+          header.appendChild(th);
+        });
+        table.appendChild(header);
+
+        // which calendarIds to show?
+        const selectedActs = Array.from(
+            document.querySelectorAll(
+              "#activity-controls input[type=checkbox]:checked"
+            )
+          ).map((i) => i.dataset.activity),
+          visibleIds = selectedActs.flatMap((a) => activityMap[a] || []);
+
+        let dateNum = 1;
+        for (let week = 0; week < 6; week++) {
+          const row = document.createElement("tr");
+          for (let dow = 0; dow < 7; dow++) {
+            const cell = document.createElement("td");
+            if (week === 0 && dow < startDow) {
+              // blank
+            } else if (dateNum > days) {
+              // blank
+            } else {
+              const dn = document.createElement("div");
+              dn.className = "date-number";
+              dn.textContent = dateNum;
+              cell.appendChild(dn);
+
+              events
+                .filter((ev) => {
+                  const d = new Date(ev.start_date);
+                  return (
+                    d.getFullYear() === yy &&
+                    d.getMonth() === mm - 1 &&
+                    d.getDate() === dateNum &&
+                    visibleIds.includes(ev.calendarId)
+                  );
+                })
+                .forEach((ev) => {
+                  console.log(ev);
+                  const div = document.createElement("div");
+                  div.className = "event";
+                  div.style.backgroundColor =
+                    calendars[ev.calendarId].color || "var(--team-green)";
+                  if (calendars[ev.calendarId].color == "#FFDC00") {
+                    div.style.color = "#000";
+                  }
+                  const title = ev.metadata?.name || "";
+                  const st = new Date(ev.start_date).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+                  const et = new Date(ev.end_date).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+                  const location =
+                    ev.metadata?.centerName || "Unknown Location";
+                  div.innerHTML = `<b>${location}</b>
+                  <br/>
+                  ${title}
+                  <br/>${st}–${et}`;
+                  cell.appendChild(div);
+                });
+
+              dateNum++;
+            }
+            row.appendChild(cell);
+          }
+          table.appendChild(row);
+          if (dateNum > days) break;
+        }
+
+        calDiv.appendChild(table);
+      }
+
+      function attachPrintButton() {
+        document
+          .getElementById("print-button")
+          .addEventListener("click", () => window.print());
+      }
+
+      // initialize
+      (function init() {
+        buildLocationControls();
+        // after buildLocationControls(), wire up the new button:
+
+        fetchAll();
+        attachPrintButton();
+      })();
+      (function () {
+        document
+          .getElementById("select-all-locations")
+          .addEventListener("click", () => {
+            // check all location boxes
+            document
+              .querySelectorAll("#location-controls input[type=checkbox]")
+              .forEach((chk) => {
+                chk.checked = true;
+              });
+            // re-fetch & redraw calendar
+            fetchAll();
+          });
+      })();
+    </script>
+  </body>
+</html>
