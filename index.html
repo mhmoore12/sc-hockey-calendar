@@ -551,15 +551,14 @@
             !visibleIds.includes(ev.calendarId)
           )
             return;
-
-          const key = d.toISOString().slice(0, 10);
+          const key = d.toString().slice(0, 10);
           byDate[key] = byDate[key] || [];
           byDate[key].push(ev);
         });
 
         // 3) Iterate dates in chronological order
         Object.keys(byDate)
-          .sort()
+          .sort((a, b) => a - b)
           .forEach((dateKey) => {
             // Date header
             const dateHeader = document.createElement("h3");
